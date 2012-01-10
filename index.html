@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+		<title>GLDecider</title>
+		<meta name="description" content="" />
+		<meta name="author" content="Kræn Hansen" />
+		<meta name="viewport" content="width=device-width; initial-scale=1.0" />
+		<link href='http://fonts.googleapis.com/css?family=Ubuntu' rel='stylesheet' type='text/css'>
+		<!--<script type="text/javascript" src="J3DI.js"></script>
+		<script type="text/javascript" src="J3DIMath.js"></script>
+		<script type="text/javascript" src="webgl-utils.js"></script>-->
+		<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+		<script type="text/javascript">
+			var gl;
+			var canvas;
+			var textureContext;
+			
+			function initGL(canvas) {
+				try {
+					gl = canvas.getContext("experimental-webgl");
+					canvas.resize();
+					
+					var textureCanvas = document.getElementById('textureCanvas');
+					textureContext = textureCanvas.getContext('2d');
+					// Resize only once.
+					textureCanvas.width = textureCanvas.clientWidth;
+					textureCanvas.height = textureCanvas.clientHeight;
+					
+					getLabelTexture("Label text æøå");
+				} catch (e) {
+				}
+				if(!gl) {
+					alert("Could not initialise WebGL, sorry :-(");
+				}
+				
+			}
+
+			function getShader(gl, id) {
+				var shaderScript = document.getElementById(id);
+				if(!shaderScript) {
+					return null;
+				}
+
+				var str = "";
+				var k = shaderScript.firstChild;
+				while(k) {
+					if(k.nodeType == 3) {
+						str += k.textContent;
+					}
+					k = k.nextSibling;
+				}
+
+				var shader;
+				if(shaderScript.type == "x-shader/x-fragment") {
+					shader = gl.createShader(gl.FRAGMENT_SHADER);
+				} else if(shaderScript.type == "x-shader/x-vertex") {
+					shader = gl.createShader(gl.VERTEX_SHADER);
+				} else {
+					return null;
+				}
+
+				gl.shaderSource(shader, str);
+				gl.compileShader(shader);
+
+				if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+					alert(gl.getShaderInfoLog(shader));
+					return null;
+				}
+
+				return shader;
+			}
+
+			var shaderProgram;
+
+			function initShaders() {
+				var fragmentShader = getShader(gl, "shader-fs");
+				var vertexShader = getShader(gl, "shader-vs");
+				shaderProgram = gl.createProgram();
+				gl.attachShader(shaderProgram, vertexShader);
+				gl.attachShader(shaderProgram, fragmentShader);
+				gl.linkProgram(shaderProgram);
+
+				if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+					alert("Could not initialise shaders");
+				}
+
+				gl.useProgram(shaderProgram);
+
+				shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+				gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+				shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+				shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+			}
+
+			var mvMatrix = mat4.create();
+			var pMatrix = mat4.create();
+
+			function setMatrixUniforms() {
+				gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+				gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+			}
+
+			var triangleVertexPositionBuffer;
+			var squareVertexPositionBuffer;
+
+			function initBuffers() {
+				triangleVertexPositionBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+				var vertices = [0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0, -1.0, 0.0];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+				triangleVertexPositionBuffer.itemSize = 3;
+				triangleVertexPositionBuffer.numItems = 3;
+				/*
+				triangleVertexPositionBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+				var vertices = [0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0, -1.0, 0.0];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+				triangleVertexPositionBuffer.itemSize = 3;
+				triangleVertexPositionBuffer.numItems = 3;
+				squareVertexPositionBuffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+				vertices = [1.0, 1.0, 0.0, -1.0, 1.0, 0.0, 1.0, -1.0, 0.0, -1.0, -1.0, 0.0];
+				gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+				squareVertexPositionBuffer.itemSize = 3;
+				squareVertexPositionBuffer.numItems = 4;
+				*/
+			}
+
+			function drawScene() {
+				gl.viewport(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight);
+				gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+				
+				mat4.perspective(45, gl.canvas.clientWidth/gl.canvas.clientHeight, 0.1, 100.0, pMatrix);
+
+				mat4.identity(mvMatrix);
+
+				//mat4.translate(mvMatrix, [-1.5, 0.0, -7.0]);
+				mat4.translate(mvMatrix, [0.0, 0.0, -7.0]);
+				gl.bindBuffer(gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+				setMatrixUniforms();
+				gl.drawArrays(gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+				/*
+				mat4.translate(mvMatrix, [3.0, 0.0, 0.0]);
+				gl.bindBuffer(gl.ARRAY_BUFFER, squareVertexPositionBuffer);
+				gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+				setMatrixUniforms();
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+				*/
+			}
+
+			function webGLStart() {
+				canvas = document.getElementById("display");
+				canvas.resize = function () {
+					this.width = this.clientWidth;
+					this.height = this.clientHeight;
+					gl.viewport(0, 0, this.clientWidth, this.clientHeight);
+					drawScene();
+				};
+			
+				initGL(canvas);
+				initShaders();
+				initBuffers();
+
+				gl.clearColor(0.2, 0.2, 0.2, 1.0);
+				gl.enable(gl.DEPTH_TEST);
+
+				canvas.resize();
+			}
+			
+			function getLabelTexture(labelText) {
+				//ctx.fillStyle = "hsl(0,100%,50%)";
+				textureContext.fillStyle = "transparent";
+				textureContext.fillRect(0, 0, textureContext.canvas.width, textureContext.canvas.height);
+				textureContext.fillStyle = 'white';
+				textureContext.lineWidth = 2.5;
+				textureContext.strokeStyle = 'black';
+				textureContext.save();
+				textureContext.font = 'bold 100px Verdana';
+				textureContext.textAlign = 'center';
+				textureContext.textBaseline = 'middle';
+				var leftOffset = textureContext.canvas.width / 2;
+				var topOffset = textureContext.canvas.height / 2;
+				textureContext.strokeText(labelText, leftOffset, topOffset);
+				textureContext.fillText(labelText, leftOffset, topOffset);
+				textureContext.restore();
+				
+				console.log(textureContext);
+				
+				// bind our canvas to a 2D texture
+				gl.bindTexture(gl.TEXTURE_2D, texture);
+				gl.texImage2D(gl.TEXTURE_2D, 0, textureCanvas);
+				gl.bindTexture(gl.TEXTURE_2D, null);
+			}
+		</script>
+		<script id="shader-fs" type="x-shader/x-fragment">
+			precision mediump float;
+
+			void main(void) {
+				gl_FragColor = vec4(1.0, 0.5, 0.5, 1.0);
+			}
+		</script>
+		<script id="shader-vs" type="x-shader/x-vertex">
+			attribute vec3 aVertexPosition;
+
+			uniform mat4 uMVMatrix;
+			uniform mat4 uPMatrix;
+
+			void main(void) {
+				gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+			}
+		</script>
+		<style type="text/css">
+			* {
+				font-family: 'Ubuntu', sans-serif;
+			}
+			#display {
+				display: none;
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				width: 100%;
+				height: 100%;
+				z-index: 1;
+			}
+			#options {
+				position: absolute;
+				background-color: rgba(255, 255, 255, 0.8);
+				top: 50%;
+				margin-top: -50px;
+				left: 50%;
+				margin-left: -150px;
+				width: 300px;
+				height: 100px;
+				z-index: 2;
+				font-size: 10pt;
+				padding: 10px;
+			}
+			#textureCanvas {
+				/*display: none;*/
+				width: 1024px;
+				height: 128px;
+			}
+		</style>
+	</head>
+	<body onload="webGLStart()" onresize="canvas.resize">
+		<header></header>
+		<!--<div id="options">asd
+		</div>-->
+		<canvas id="display"></canvas>
+		<canvas id="textureCanvas"></canvas>
+		<footer></footer>
+	</body>
+</html>
